@@ -1,10 +1,11 @@
 Pod::Spec.new do |s|
   s.name = 'XMPPFramework'
-  s.version = '4.0.0'
+  s.version = '4.0.26'
 
-  s.osx.deployment_target = '10.9'
-  s.ios.deployment_target = '8.0'
-  s.tvos.deployment_target = '9.0'
+  s.osx.deployment_target = '10.10'
+  s.ios.deployment_target = '10.0'
+  s.tvos.deployment_target = '10.0'
+  s.swift_version = "5.1"
 
   s.license = { :type => 'BSD', :file => 'copying.txt' }
   s.summary = 'An XMPP Framework in Objective-C for the Mac / iOS development community.'
@@ -21,6 +22,7 @@ Pod::Spec.new do |s|
   on a 12-core Mac Pro. (And it won\'t block the main thread... at all).'
 
   s.requires_arc = true
+  s.compiler_flags = '-Wno-documentation-unknown-command', '-Wno-objc-interface-ivars', '-Wno-error', '-Wno-newline-eof'
 
   s.default_subspec = 'default'
 
@@ -36,18 +38,21 @@ Pod::Spec.new do |s|
 	  }
     ss.resources = [ 'Extensions/**/*.{xcdatamodel,xcdatamodeld}']
 	  ss.dependency 'CocoaLumberjack' # Skip pinning version because of the awkward 2.x->3.x transition
-	  ss.dependency 'CocoaAsyncSocket', '~> 7.6'
-	  ss.dependency 'KissXML', '~> 5.2'
+	  ss.dependency 'CocoaAsyncSocket', '~> 7.6.3'
+	  ss.dependency 'KissXML', '~> 5.3.2'
 	  ss.dependency 'libidn', '~> 1.35'
+	  ss.dependency "Starscream", '~> 3.1.1'
+    ss.compiler_flags = '-Wno-documentation-unknown-command', '-Wno-objc-interface-ivars', '-Wno-error', '-Wno-undef', '-Wno-newline-eof'
   end
 
   s.subspec 'Swift' do |ss|
-	  ss.ios.deployment_target = '8.0'
-	  ss.tvos.deployment_target = '9.0'
+	  ss.ios.deployment_target = '10.0'
+	  ss.tvos.deployment_target = '10.0'
     ss.osx.deployment_target      = '10.10'
     ss.source_files = 'Swift/**/*.swift'
     ss.dependency 'XMPPFramework/default'
     ss.dependency 'CocoaLumberjack/Swift'
+    ss.compiler_flags = '-Wno-documentation-unknown-command', '-Wno-objc-interface-ivars', '-Wno-error', '-Wno-undef', '-Wno-newline-eof'
   end
 
 end

@@ -128,3 +128,4 @@ typedef enum XMPPBlockingErrorCode
 - (void)xmppBlocking:(XMPPBlocking *)sender didNotUnblockAllDueToError:(id)error;
 
 @end
+

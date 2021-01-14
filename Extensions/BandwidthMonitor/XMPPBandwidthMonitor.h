@@ -7,7 +7,15 @@
 **/
 
 #import <Foundation/Foundation.h>
+
+#pragma clang diagnostic push GAMESYS
+#pragma clang diagnostic ignored "-Wobjc-interface-ivars"
+#pragma clang diagnostic ignored "-Wdocumentation"
+#pragma clang diagnostic ignored "-Woverriding-method-mismatch"
+#pragma clang diagnostic ignored "-Wundef"
+#pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
 #import "XMPP.h"
+#pragma clang diagnostic pop GAMESYS
 
 #define _XMPP_BANDWIDTH_MONITOR_H
 

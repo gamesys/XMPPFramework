@@ -69,7 +69,7 @@ extern NSString *const XMPPStreamDidChangeMyJIDNotification;
  * You shouldn't mess with this unless you really
  * know what you're doing.
  */
-@property (nonatomic, readonly) GCDAsyncSocket *asyncSocket;
+@property (nonatomic, readonly) NSObject<GCDSocketprotocol> *asyncSocket;
 
 /**
  * Returns the current state of the xmppStream.

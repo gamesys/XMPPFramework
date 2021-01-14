@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class XMPPElement;
 @class XMPPElementReceipt;
 @protocol XMPPStreamDelegate;
+@protocol GCDSocketprotocol;
 
 #if TARGET_OS_IPHONE
   #define MIN_KEEPALIVE_INTERVAL      20.0 // 20 Seconds
@@ -44,6 +45,11 @@ typedef NS_ENUM(NSUInteger, XMPPStreamStartTLSPolicy) {
     XMPPStreamStartTLSPolicyRequired   // TLS will be used if the server offers it, else the stream won't connect
 };
 
+typedef NS_ENUM(NSUInteger, XMPPStreamProtocol) {
+    XMPPStreamProtocolTCP,
+    XMPPStreamProtocolWS
+};
+
 extern const NSTimeInterval XMPPStreamTimeoutNone;
 
 @interface XMPPStream : NSObject <GCDAsyncSocketDelegate>
@@ -62,6 +68,8 @@ extern const NSTimeInterval XMPPStreamTimeoutNone;
  * The stream is a direct client to client connection as outlined in XEP-0174.
 **/
 - (instancetype)initP2PFrom:(XMPPJID *)myJID;
+
+- (instancetype)initWithProtocol:(XMPPStreamProtocol)protocol;
 
 /**
  * XMPPStream uses a multicast delegate.
@@ -120,6 +128,9 @@ extern const NSTimeInterval XMPPStreamTimeoutNone;
  * @see XMPPStreamStartTLSPolicy
 **/
 @property (readwrite, assign) XMPPStreamStartTLSPolicy startTLSPolicy;
+
+
+@property (readwrite, assign) bool shouldBindOnAuthenticated;
 
 /**
  * The JID of the user.
@@ -360,7 +371,7 @@ extern const NSTimeInterval XMPPStreamTimeoutNone;
  * The given socket should be a socket that has already been accepted.
  * The remoteJID will be extracted from the opening stream negotiation.
 **/
-- (BOOL)connectP2PWithSocket:(GCDAsyncSocket *)acceptedSocket error:(NSError **)errPtr;
+- (BOOL)connectP2PWithSocket:(NSObject<GCDSocketprotocol> *)acceptedSocket error:(NSError **)errPtr;
 
 /**
  * Aborts any in-progress connection attempt. Has no effect if the stream is already connected or disconnected.
@@ -807,7 +818,7 @@ extern const NSTimeInterval XMPPStreamTimeoutNone;
  * If developing an iOS app that runs in the background,
  * please use XMPPStream's enableBackgroundingOnSocket property as opposed to doing it directly on the socket here.
 **/
-- (void)xmppStream:(XMPPStream *)sender socketDidConnect:(GCDAsyncSocket *)socket;
+- (void)xmppStream:(XMPPStream *)sender socketDidConnect:(NSObject<GCDSocketprotocol> *)socket;
 
 /**
  * This method is called after a TCP connection has been established with the server,

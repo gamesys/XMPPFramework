@@ -2,6 +2,12 @@
 // Core classes
 // 
 
+#pragma clang diagnostic push GAMESYS
+#pragma clang diagnostic ignored "-Wobjc-interface-ivars"
+#pragma clang diagnostic ignored "-Wdocumentation"
+#pragma clang diagnostic ignored "-Woverriding-method-mismatch"
+#pragma clang diagnostic ignored "-Wundef"
+#pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
 #import "XMPPJID.h"
 #import "XMPPStream.h"
 #import "XMPPElement.h"
@@ -9,6 +15,8 @@
 #import "XMPPMessage.h"
 #import "XMPPPresence.h"
 #import "XMPPModule.h"
+#import "GCDSocketprotocol.h"
+#import "GCDTCPSocketImpl.h"
 
 // 
 // Authentication
@@ -28,3 +36,4 @@
 // 
 
 #import "NSXMLElement+XMPP.h"
+#pragma clang diagnostic pop GAMESYS

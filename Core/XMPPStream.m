@@ -5,6 +5,7 @@
 #import "XMPPIDTracker.h"
 #import "XMPPSRVResolver.h"
 #import "NSData+XMPP.h"
+#import "XMPPframework/XMPPFramework-Swift.h"
 
 #import <objc/runtime.h>
 #import <libkern/OSAtomic.h>
@@ -93,7 +94,7 @@ enum XMPPStreamConfig
 	
 	XMPPStreamState state;
 	
-	GCDAsyncSocket *asyncSocket;
+	NSObject<GCDSocketprotocol> *asyncSocket;
 	
 	uint64_t numberOfBytesSent;
 	uint64_t numberOfBytesReceived;
@@ -142,6 +143,8 @@ enum XMPPStreamConfig
 	NSCountedSet *customElementNames;
 	
 	id userTag;
+
+    XMPPStreamProtocol protocol;
 }
 
 @end
@@ -161,6 +164,7 @@ enum XMPPStreamConfig
 
 @synthesize tag = userTag;
 @synthesize asyncSocket = asyncSocket;
+@synthesize shouldBindOnAuthenticated = shouldBindOnAuthenticated;
 
 /**
  * Shared initialization between the various init methods.
@@ -198,6 +202,9 @@ enum XMPPStreamConfig
 	
 	receipts = [[NSMutableArray alloc] init];
     preferIPv6 = YES;
+    shouldBindOnAuthenticated = NO;
+
+    protocol = XMPPStreamProtocolTCP;
 }
 
 /**
@@ -237,6 +244,17 @@ enum XMPPStreamConfig
         config = kP2PMode;
     }
 	return self;
+}
+
+- (instancetype)initWithProtocol:(XMPPStreamProtocol)p {
+    if ((self = [super init]))
+    {
+        // Common initialization
+        [self commonInit];
+        protocol = p;
+        asyncSocket = [self newSocket];
+    }
+    return self;
 }
 
 /**
@@ -1322,7 +1340,7 @@ enum XMPPStreamConfig
  * The given socket should be a socket that has already been accepted.
  * The remoteJID will be extracted from the opening stream negotiation.
 **/
-- (BOOL)connectP2PWithSocket:(GCDAsyncSocket *)acceptedSocket error:(NSError **)errPtr
+- (BOOL)connectP2PWithSocket:(NSObject<GCDSocketprotocol> *)acceptedSocket error:(NSError **)errPtr
 {
 	XMPPLogTrace();
 	
@@ -1684,6 +1702,9 @@ enum XMPPStreamConfig
 		if (self->state >= STATE_XMPP_POST_NEGOTIATION)
 		{
 			NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+            if (features == nil) {
+                features = [self->rootElement elementForName:@"features"];
+            }
 			NSXMLElement *reg = [features elementForName:@"register" xmlns:@"http://jabber.org/features/iq-register"];
 			
 			result = (reg != nil);
@@ -1835,6 +1856,9 @@ enum XMPPStreamConfig
 		if (self->state >= STATE_XMPP_POST_NEGOTIATION)
 		{
 			NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+            if (features == nil) {
+                features = [self->rootElement elementForName:@"features"];
+            }
 			NSXMLElement *mech = [features elementForName:@"mechanisms" xmlns:@"urn:ietf:params:xml:ns:xmpp-sasl"];
 			
 			NSArray *mechanisms = [mech elementsForName:@"mechanism"];
@@ -1871,7 +1895,12 @@ enum XMPPStreamConfig
 		
 		if (self->state >= STATE_XMPP_POST_NEGOTIATION)
 		{
-			NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+            NSXMLElement *root = self->rootElement;
+
+            NSXMLElement *features = [root elementForName:@"stream:features"];
+            if (features == nil) {
+                features =  [root elementForName:@"features"];
+            }
 			NSXMLElement *mech = [features elementForName:@"mechanisms" xmlns:@"urn:ietf:params:xml:ns:xmpp-sasl"];
 			
 			NSArray *mechanisms = [mech elementsForName:@"mechanism"];
@@ -2140,6 +2169,9 @@ enum XMPPStreamConfig
 		if (self->state >= STATE_XMPP_POST_NEGOTIATION)
 		{
 			NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+            if (features == nil) {
+                features = [self->rootElement elementForName:@"features"];
+            }
 			NSXMLElement *compression = [features elementForName:@"compression" xmlns:@"http://jabber.org/features/compress"];
 			
 			NSArray *methods = [compression elementsForName:@"method"];
@@ -2177,6 +2209,9 @@ enum XMPPStreamConfig
 		if (self->state >= STATE_XMPP_POST_NEGOTIATION)
 		{
 			NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+            if (features == nil) {
+                features = [self->rootElement elementForName:@"features"];
+            }
 			NSXMLElement *compression = [features elementForName:@"compression" xmlns:@"http://jabber.org/features/compress"];
 			
 			NSArray *methods = [compression elementsForName:@"method"];
@@ -3284,6 +3319,20 @@ enum XMPPStreamConfig
 	[asyncSocket readDataWithTimeout:TIMEOUT_XMPP_READ_START tag:TAG_XMPP_READ_START];
 }
 
+- (void)sendOpeningNegotiationWebSocket {
+    NSString *s1 = @"<open xmlns=\"urn:ietf:params:xml:ns:xmpp-framing\" to=\"chat\" version=\"1.0\" />\r\n";
+
+    NSData *outgoingData = [s1 dataUsingEncoding:NSUTF8StringEncoding];
+
+    XMPPLogSend(@"SEND: %@", s1);
+    numberOfBytesSent += [outgoingData length];
+    [asyncSocket writeData:outgoingData
+               withTimeout:TIMEOUT_XMPP_WRITE
+                       tag:TAG_XMPP_WRITE_START];
+
+    [self setDidStartNegotiation:YES];
+}
+
 /**
  * This method handles sending the opening <stream:stream ...> element which is needed in several situations.
 **/
@@ -3293,10 +3342,14 @@ enum XMPPStreamConfig
 	
 	XMPPLogTrace();
 	
-	if (![self didStartNegotiation])
+	if (![self didStartNegotiation] || self->protocol == XMPPStreamProtocolWS)
 	{
 		// TCP connection was just opened - We need to include the opening XML stanza
 		NSString *s1 = @"<?xml version='1.0'?>";
+
+        if (self->protocol == XMPPStreamProtocolWS) {
+            s1 = @"<open xmlns=\"urn:ietf:params:xml:ns:xmpp-framing\" to=\"chat\" version=\"1.0\" />\r\n";
+        }
 		
 		NSData *outgoingData = [s1 dataUsingEncoding:NSUTF8StringEncoding];
 		
@@ -3370,6 +3423,8 @@ enum XMPPStreamConfig
             s2 = [NSString stringWithFormat:temp, xmlns, xmlns_stream];
         }
     }
+
+//    if (self->protocol == XMPPStreamProtocolTCP) {
 	
 	NSData *outgoingData = [s2 dataUsingEncoding:NSUTF8StringEncoding];
 	
@@ -3379,6 +3434,8 @@ enum XMPPStreamConfig
 	[asyncSocket writeData:outgoingData
 			   withTimeout:TIMEOUT_XMPP_WRITE
 					   tag:TAG_XMPP_WRITE_START];
+
+//    }
 	
 	// Update status
 	state = STATE_XMPP_OPENING;
@@ -3502,6 +3559,10 @@ enum XMPPStreamConfig
 	
 	// Extract the stream features
 	NSXMLElement *features = [rootElement elementForName:@"stream:features"];
+
+    if (features == nil) {
+        features = [rootElement elementForName:@"features"];
+    }
 	
 	// Check to see if TLS is required
 	// Don't forget about that NSXMLElement bug you reported to apple (xmlns is required or element won't be found)
@@ -3634,6 +3695,9 @@ enum XMPPStreamConfig
 		[self setIsAuthenticated:YES];
 		
 		BOOL shouldRenegotiate = YES;
+        if (self.shouldBindOnAuthenticated) {
+            shouldRenegotiate = NO;
+        }
 		if ([auth respondsToSelector:@selector(shouldResendOpeningNegotiationAfterSuccessfulAuthentication)])
 		{
 			shouldRenegotiate = [auth shouldResendOpeningNegotiationAfterSuccessfulAuthentication];
@@ -3658,8 +3722,11 @@ enum XMPPStreamConfig
 		{
 			// Revert back to connected state (from authenticating state)
 			state = STATE_XMPP_CONNECTED;
-			
+            if (self.shouldBindOnAuthenticated) {
+                [self startBinding];
+            }
 			[multicastDelegate xmppStreamDidAuthenticate:self];
+
 		}
 		
 		// Done with auth
@@ -4053,7 +4120,10 @@ enum XMPPStreamConfig
 	XMPPLogTrace();
 	
 	// And we may now have to do one last thing before we're ready - start an IM session
-	NSXMLElement *features = [rootElement elementForName:@"stream:features"];
+	NSXMLElement *features = [self->rootElement elementForName:@"stream:features"];
+    if (features == nil) {
+        features = [self->rootElement elementForName:@"features"];
+    }
 	
 	// Check to see if a session is required
 	// Don't forget about that NSXMLElement bug you reported to apple (xmlns is required or element won't be found)
@@ -4209,7 +4279,7 @@ enum XMPPStreamConfig
 /**
  * Called when a socket connects and is ready for reading and writing. "host" will be an IP address, not a DNS name.
 **/
-- (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(UInt16)port
+- (void)socket:(NSObject<GCDSocketprotocol> *)sock didConnectToHost:(NSString *)host port:(UInt16)port
 {
 	// This method is invoked on the xmppQueue.
 	// 
@@ -4257,7 +4327,7 @@ enum XMPPStreamConfig
 	}
 }
 
-- (void)socket:(GCDAsyncSocket *)sock didReceiveTrust:(SecTrustRef)trust
+- (void)socket:(NSObject<GCDSocketprotocol> *)sock didReceiveTrust:(SecTrustRef)trust
                                     completionHandler:(void (^)(BOOL shouldTrustPeer))completionHandler
 {
 	XMPPLogTrace();
@@ -4294,7 +4364,7 @@ enum XMPPStreamConfig
 	}
 }
 
-- (void)socketDidSecure:(GCDAsyncSocket *)sock
+- (void)socketDidSecure:(NSObject<GCDSocketprotocol> *)sock
 {
 	// This method is invoked on the xmppQueue.
 	
@@ -4306,7 +4376,7 @@ enum XMPPStreamConfig
 /**
  * Called when a socket has completed reading the requested data. Not called if there is an error.
 **/
-- (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag
+- (void)socket:(NSObject<GCDSocketprotocol> *)sock didReadData:(NSData *)data withTag:(long)tag
 {
 	// This method is invoked on the xmppQueue.
 	
@@ -4316,9 +4386,19 @@ enum XMPPStreamConfig
 	numberOfBytesReceived += [data length];
 	
 	XMPPLogRecvPre(@"RECV: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-	
-	// Asynchronously parse the xml data
-	[parser parseData:data];
+
+    if (self->protocol == XMPPStreamProtocolWS && state == STATE_XMPP_OPENING) { // Parser ends immediately cause open tag is sent with self closing
+        NSString *str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        if ([str containsString:@"<open"]) {
+            str = [str stringByReplacingOccurrencesOfString:@"/>" withString:@">"];
+        }
+        [parser parseData:[str dataUsingEncoding: NSUTF8StringEncoding]];
+    } else {
+
+        // Asynchronously parse the xml data
+        [parser parseData:data];
+
+    }
 	
 	if ([self isSecure])
 	{
@@ -4342,7 +4422,7 @@ enum XMPPStreamConfig
 /**
  * Called after data with the given tag has been successfully sent.
 **/
-- (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)tag
+- (void)socket:(NSObject<GCDSocketprotocol> *)sock didWriteDataWithTag:(long)tag
 {
 	// This method is invoked on the xmppQueue.
 	
@@ -4371,7 +4451,7 @@ enum XMPPStreamConfig
 /**
  * Called when a socket disconnects with or without error.
 **/
-- (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err
+- (void)socketDidDisconnect:(NSObject<GCDSocketprotocol> *)sock withError:(NSError *)err
 {
 	// This method is invoked on the xmppQueue.
 	
@@ -5077,9 +5157,15 @@ enum XMPPStreamConfig
 }
 
 /** Allocates and configures a new socket */
-- (GCDAsyncSocket*) newSocket {
-    GCDAsyncSocket *socket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:xmppQueue];
-    socket.IPv4PreferredOverIPv6 = !self.preferIPv6;
+- (NSObject<GCDSocketprotocol> *) newSocket {
+    NSObject<GCDSocketprotocol> *socket = nil;
+    if (self->protocol == XMPPStreamProtocolTCP) {
+        socket = [[GCDTCPSocketImpl alloc] initWithDelegate:self delegateQueue:xmppQueue];
+        ((GCDTCPSocketImpl *)socket).IPv4PreferredOverIPv6 = !self.preferIPv6;
+    } else {
+         socket = [[GCDWebSocketImpl alloc] initWithDelegate:self delegateQueue:xmppQueue];
+    }
+
     return socket;
 }
 

@@ -24,6 +24,7 @@ let package = Package(
         .package(name: "CocoaAsyncSocket", url: "https://github.com/robbiehanson/CocoaAsyncSocket.git", .upToNextMajor(from: "7.6.4")),
         .package(name: "KissXML", url: "https://github.com/robbiehanson/KissXML.git", .upToNextMajor(from: "5.3.3")),
         .package(name: "libidn", url: "https://github.com/chrisballinger/libidn-framework.git", .upToNextMajor(from: "1.35.1"))
+        .package(name:, "Starscream", url: "https://github.com/daltoniam/Starscream", .upToNextMajor(from: "3.1.1"))
     ],
     targets: [
         .target(
@@ -32,7 +33,8 @@ let package = Package(
                 "CocoaLumberjack",
                 "CocoaAsyncSocket",
                 "KissXML",
-                "libidn"
+                "libidn",
+                "Starscream"
             ],
             path: ".",
             exclude: [
